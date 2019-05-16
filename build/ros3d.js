@@ -56171,6 +56171,13 @@ class Urdf extends THREE$1.Object3D {
    *   * path (optional) - the base path to the associated Collada models that will be loaded
    *   * tfPrefix (optional) - the TF prefix to used for multi-robots
    *   * loader (optional) - the Collada loader to use (e.g., an instance of ROS3D.COLLADA_LOADER)
+   *   * meshPaths (optional) - the base paths to the associated Collada models that will be loaded.
+   *                            Base path for each STL is determined by the first directory in the path of the model.
+   *                            It applies only on meshes which URI starts with 'package://'
+   *                            Example:
+   *                              meshPaths = { "robot" : "media/robots/kuka/", "gripper": "media/grippers" }
+   *                              mesh "package://robot/mesh/link1.STL" in URDF will be loaded from "media/robots/kuka/link1.STL"
+   *                              mesh "package://gripper/finger.STL" in URDF will be loaded from "media/grippers/finger.STL"
    */
   constructor(options) {
     options = options || {};
@@ -56179,6 +56186,7 @@ class Urdf extends THREE$1.Object3D {
     var tfClient = options.tfClient;
     var tfPrefix = options.tfPrefix || '';
     var loader = options.loader;
+    var meshPaths = options.meshPaths;
 
     super();
 
@@ -56203,12 +56211,24 @@ class Urdf extends THREE$1.Object3D {
             var tmpIndex = uri.indexOf('package://');
             if (tmpIndex !== -1) {
               uri = uri.substr(tmpIndex + ('package://').length);
+
+              //apply meshPaths if defined
+              if (meshPaths) {
+                var firstDir = uri.substring(0, uri.indexOf('/'));
+                var filename = uri.substring(uri.lastIndexOf('/')+1);
+                if (meshPaths[firstDir]) {
+                  path = meshPaths[firstDir];
+                  uri = filename;
+                } else {
+                    path = options.path || '/';
+                }
+              }
             }
             var fileType = uri.substr(-3).toLowerCase();
 
             if (MeshLoader.loaders[fileType]) {
               // create the model
-              var mesh = new MeshResource({
+              var mesh = new ROS3D.MeshResource({
                 path : path,
                 resource : uri,
                 loader : loader,
@@ -56221,7 +56241,7 @@ class Urdf extends THREE$1.Object3D {
               }
 
               // create a scene node with the model
-              var sceneNode = new SceneNode({
+              var sceneNode = new ROS3D.SceneNode({
                 frameID : frameID,
                   pose : visual.origin,
                   tfClient : tfClient,
@@ -56301,6 +56321,13 @@ class UrdfClient {
    *   * rootObject (optional) - the root object to add this marker to
    *   * tfPrefix (optional) - the TF prefix to used for multi-robots
    *   * loader (optional) - the Collada loader to use (e.g., an instance of ROS3D.COLLADA_LOADER)
+   *   * meshPaths (optional) - the base paths to the associated Collada models that will be loaded.
+   *                            Base path for each STL is determined by the first directory in the path of the model.
+   *                            It applies only on meshes which URI starts with 'package://'
+   *                            Example:
+   *                              meshPaths = { "robot" : "media/robots/kuka/", "gripper": "media/grippers" }
+   *                              mesh "package://robot/mesh/link1.STL" in URDF will be loaded from "media/robots/kuka/link1.STL"
+   *                              mesh "package://gripper/finger.STL" in URDF will be loaded from "media/grippers/finger.STL"
    */
   constructor(options) {
     var that = this;
@@ -56312,6 +56339,7 @@ class UrdfClient {
     this.rootObject = options.rootObject || new THREE$1.Object3D();
     this.tfPrefix = options.tfPrefix || '';
     this.loader = options.loader;
+    this.meshPaths = options.meshPaths;
 
     // get the URDF value from ROS
     var getParam = new ROSLIB.Param({
@@ -56330,7 +56358,8 @@ class UrdfClient {
         path : that.path,
         tfClient : that.tfClient,
         tfPrefix : that.tfPrefix,
-        loader : that.loader
+        loader : that.loader,
+        meshPaths: that.meshPaths
       });
       that.rootObject.add(that.urdf);
     });
