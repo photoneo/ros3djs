@@ -52903,7 +52903,7 @@ class InteractiveMarkerMenu extends THREE$1.EventDispatcher {
   };
 
   /**
-   * Show the menu DOM element.
+   * Shoe the menu DOM element.
    *
    * @param control - the control for the menu
    * @param event - the event that caused this
@@ -54714,9 +54714,7 @@ class MarkerClient extends eventemitter2 {
   checkTime(name){
       var curTime = new Date().getTime();
       if (curTime - this.updatedTime[name] > this.lifetime) {
-          var oldNode = this.markers[name];
-          oldNode.unsubscribeTf();
-          this.rootObject.remove(oldNode);
+          this.removeMarker(name);
           this.emit('change');
       } else {
           var that = this;
@@ -54743,8 +54741,8 @@ class MarkerClient extends eventemitter2 {
     var oldNode = this.markers[message.ns + message.id];
     this.updatedTime[message.ns + message.id] = new Date().getTime();
     if (oldNode) {
-      oldNode.unsubscribeTf();
-      this.rootObject.remove(oldNode);
+      this.removeMarker(message.ns + message.id);
+
     } else if (this.lifetime) {
       this.checkTime(message.ns + message.id);
     }
@@ -54764,6 +54762,16 @@ class MarkerClient extends eventemitter2 {
     }
 
     this.emit('change');
+  };
+
+  removeMarker(key) {
+    var oldNode = this.markers[key];
+    oldNode.unsubscribeTf();
+    this.rootObject.remove(oldNode);
+    oldNode.children.forEach(child => {
+      child.dispose();
+    });
+    delete(this.markers[key]);
   };
 }
 
@@ -56033,6 +56041,7 @@ class PointCloud2 extends THREE$1.Object3D {
     options = options || {};
     this.ros = options.ros;
     this.topicName = options.topic || '/points';
+    this.throttle_rate = options.throttle_rate || null;
     this.compression = options.compression || 'cbor';
     this.max_pts = options.max_pts || 10000;
     this.points = new Points$1(options);
@@ -56056,6 +56065,7 @@ class PointCloud2 extends THREE$1.Object3D {
       ros : this.ros,
       name : this.topicName,
       messageType : 'sensor_msgs/PointCloud2',
+      throttle_rate : this.throttle_rate,
       queue_length : 1,
       compression: this.compression
     });
@@ -56174,13 +56184,6 @@ class Urdf extends THREE$1.Object3D {
    *   * path (optional) - the base path to the associated Collada models that will be loaded
    *   * tfPrefix (optional) - the TF prefix to used for multi-robots
    *   * loader (optional) - the Collada loader to use (e.g., an instance of ROS3D.COLLADA_LOADER)
-   *   * meshPaths (optional) - the base paths to the associated Collada models that will be loaded.
-   *                            Base path for each STL is determined by the first directory in the path of the model.
-   *                            It applies only on meshes which URI starts with 'package://'
-   *                            Example:
-   *                              meshPaths = { "robot" : "media/robots/kuka/", "gripper": "media/grippers" }
-   *                              mesh "package://robot/mesh/link1.STL" in URDF will be loaded from "media/robots/kuka/link1.STL"
-   *                              mesh "package://gripper/finger.STL" in URDF will be loaded from "media/grippers/finger.STL"
    */
   constructor(options) {
     options = options || {};
@@ -56189,7 +56192,6 @@ class Urdf extends THREE$1.Object3D {
     var tfClient = options.tfClient;
     var tfPrefix = options.tfPrefix || '';
     var loader = options.loader;
-    var meshPaths = options.meshPaths;
 
     super();
 
@@ -56214,24 +56216,12 @@ class Urdf extends THREE$1.Object3D {
             var tmpIndex = uri.indexOf('package://');
             if (tmpIndex !== -1) {
               uri = uri.substr(tmpIndex + ('package://').length);
-
-              //apply meshPaths if defined
-              if (meshPaths) {
-                var firstDir = uri.substring(0, uri.indexOf('/'));
-                var filename = uri.substring(uri.lastIndexOf('/')+1);
-                if (meshPaths[firstDir]) {
-                  path = meshPaths[firstDir];
-                  uri = filename;
-                } else {
-                    path = options.path || '/';
-                }
-              }
             }
             var fileType = uri.substr(-3).toLowerCase();
 
             if (MeshLoader.loaders[fileType]) {
               // create the model
-              var mesh = new ROS3D.MeshResource({
+              var mesh = new MeshResource({
                 path : path,
                 resource : uri,
                 loader : loader,
@@ -56244,7 +56234,7 @@ class Urdf extends THREE$1.Object3D {
               }
 
               // create a scene node with the model
-              var sceneNode = new ROS3D.SceneNode({
+              var sceneNode = new SceneNode({
                 frameID : frameID,
                   pose : visual.origin,
                   tfClient : tfClient,
@@ -56255,29 +56245,7 @@ class Urdf extends THREE$1.Object3D {
               console.warn('Could not load geometry mesh: '+uri);
             }
           } else {
-            if (!colorMaterial) {
-              colorMaterial = makeColorMaterial(0, 0, 0, 1);
-            }
-            var shapeMesh;
-            // Create a shape
-            switch (visual.geometry.type) {
-              case ROSLIB.URDF_BOX:
-                var dimension = visual.geometry.dimension;
-                var cube = new THREE$1.BoxGeometry(dimension.x, dimension.y, dimension.z);
-                shapeMesh = new THREE$1.Mesh(cube, colorMaterial);
-                break;
-              case ROSLIB.URDF_CYLINDER:
-                var radius = visual.geometry.radius;
-                var length = visual.geometry.length;
-                var cylinder = new THREE$1.CylinderGeometry(radius, radius, length, 16, 1, false);
-                shapeMesh = new THREE$1.Mesh(cylinder, colorMaterial);
-                shapeMesh.quaternion.setFromAxisAngle(new THREE$1.Vector3(1, 0, 0), Math.PI * 0.5);
-                break;
-              case ROSLIB.URDF_SPHERE:
-                var sphere = new THREE$1.SphereGeometry(visual.geometry.radius, 16);
-                shapeMesh = new THREE$1.Mesh(sphere, colorMaterial);
-                break;
-            }
+            var shapeMesh = this.createShapeMesh(visual);
             // Create a scene node with the shape
             var scene = new SceneNode({
               frameID: frameID,
@@ -56291,6 +56259,36 @@ class Urdf extends THREE$1.Object3D {
       }
     }
   };
+
+  createShapeMesh(visual) {
+    var colorMaterial = null;
+    if (!colorMaterial) {
+      colorMaterial = makeColorMaterial(0, 0, 0, 1);
+    }
+    var shapeMesh;
+    // Create a shape
+    switch (visual.geometry.type) {
+      case ROSLIB.URDF_BOX:
+        var dimension = visual.geometry.dimension;
+        var cube = new THREE$1.BoxGeometry(dimension.x, dimension.y, dimension.z);
+        shapeMesh = new THREE$1.Mesh(cube, colorMaterial);
+        break;
+      case ROSLIB.URDF_CYLINDER:
+        var radius = visual.geometry.radius;
+        var length = visual.geometry.length;
+        var cylinder = new THREE$1.CylinderGeometry(radius, radius, length, 16, 1, false);
+        shapeMesh = new THREE$1.Mesh(cylinder, colorMaterial);
+        shapeMesh.quaternion.setFromAxisAngle(new THREE$1.Vector3(1, 0, 0), Math.PI * 0.5);
+        break;
+      case ROSLIB.URDF_SPHERE:
+        var sphere = new THREE$1.SphereGeometry(visual.geometry.radius, 16);
+        shapeMesh = new THREE$1.Mesh(sphere, colorMaterial);
+        break;
+    }
+
+    return shapeMesh;
+  };
+
 
   unsubscribeTf () {
     this.children.forEach(function(n) {
@@ -56324,13 +56322,6 @@ class UrdfClient {
    *   * rootObject (optional) - the root object to add this marker to
    *   * tfPrefix (optional) - the TF prefix to used for multi-robots
    *   * loader (optional) - the Collada loader to use (e.g., an instance of ROS3D.COLLADA_LOADER)
-   *   * meshPaths (optional) - the base paths to the associated Collada models that will be loaded.
-   *                            Base path for each STL is determined by the first directory in the path of the model.
-   *                            It applies only on meshes which URI starts with 'package://'
-   *                            Example:
-   *                              meshPaths = { "robot" : "media/robots/kuka/", "gripper": "media/grippers" }
-   *                              mesh "package://robot/mesh/link1.STL" in URDF will be loaded from "media/robots/kuka/link1.STL"
-   *                              mesh "package://gripper/finger.STL" in URDF will be loaded from "media/grippers/finger.STL"
    */
   constructor(options) {
     var that = this;
@@ -56342,7 +56333,6 @@ class UrdfClient {
     this.rootObject = options.rootObject || new THREE$1.Object3D();
     this.tfPrefix = options.tfPrefix || '';
     this.loader = options.loader;
-    this.meshPaths = options.meshPaths;
 
     // get the URDF value from ROS
     var getParam = new ROSLIB.Param({
@@ -56361,8 +56351,7 @@ class UrdfClient {
         path : that.path,
         tfClient : that.tfClient,
         tfPrefix : that.tfPrefix,
-        loader : that.loader,
-        meshPaths: that.meshPaths
+        loader : that.loader
       });
       that.rootObject.add(that.urdf);
     });
@@ -56582,17 +56571,16 @@ class MouseHandler extends THREE$1.EventDispatcher {
     var top = pos_y - rect.top - target.clientTop + target.scrollTop;
     var deviceX = left / target.clientWidth * 2 - 1;
     var deviceY = -top / target.clientHeight * 2 + 1;
-    var vector = new THREE$1.Vector3(deviceX, deviceY, 0.5);
-    vector.unproject(this.camera);
-    // use the THREE raycaster
-    var mouseRaycaster = new THREE$1.Raycaster(this.camera.position.clone(), vector.sub(
-        this.camera.position).normalize());
+    var mousePos = new THREE$1.Vector2(deviceX, deviceY);
+
+    var mouseRaycaster = new THREE$1.Raycaster();
     mouseRaycaster.linePrecision = 0.001;
+    mouseRaycaster.setFromCamera(mousePos, this.camera);
     var mouseRay = mouseRaycaster.ray;
 
     // make our 3d mouse event
     var event3D = {
-      mousePos : new THREE$1.Vector2(deviceX, deviceY),
+      mousePos : mousePos,
       mouseRay : mouseRay,
       domEvent : domEvent,
       camera : this.camera,
