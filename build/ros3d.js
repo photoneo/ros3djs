@@ -52903,7 +52903,7 @@ class InteractiveMarkerMenu extends THREE$1.EventDispatcher {
   };
 
   /**
-   * Shoe the menu DOM element.
+   * Show the menu DOM element.
    *
    * @param control - the control for the menu
    * @param event - the event that caused this
@@ -52913,17 +52913,20 @@ class InteractiveMarkerMenu extends THREE$1.EventDispatcher {
       event.preventDefault();
     }
 
+    var top  = window.pageYOffset || document.documentElement.scrollTop;
+    var left = window.pageXOffset || document.documentElement.scrollLeft;
+
     this.controlName = control.name;
 
     // position it on the click
     if (event.domEvent.changedTouches !== undefined) {
       // touch click
-      this.menuDomElem.style.left = event.domEvent.changedTouches[0].pageX + 'px';
-      this.menuDomElem.style.top = event.domEvent.changedTouches[0].pageY + 'px';
+      this.menuDomElem.style.left = (event.domEvent.changedTouches[0].pageX + left) + 'px';
+      this.menuDomElem.style.top = (event.domEvent.changedTouches[0].pageY + left) + 'px';
     } else {
       // mouse click
-      this.menuDomElem.style.left = event.domEvent.clientX + 'px';
-      this.menuDomElem.style.top = event.domEvent.clientY + 'px';
+      this.menuDomElem.style.left = (event.domEvent.clientX + left) + 'px';
+      this.menuDomElem.style.top = (event.domEvent.clientY + top) + 'px';
     }
     document.body.appendChild(this.overlayDomElem);
     document.body.appendChild(this.menuDomElem);
