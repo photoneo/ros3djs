@@ -52859,17 +52859,20 @@ var InteractiveMarkerMenu = /*@__PURE__*/(function (superclass) {
       event.preventDefault();
     }
 
+    var top  = window.pageYOffset || document.documentElement.scrollTop;
+    var left = window.pageXOffset || document.documentElement.scrollLeft;
+
     this.controlName = control.name;
 
     // position it on the click
     if (event.domEvent.changedTouches !== undefined) {
       // touch click
-      this.menuDomElem.style.left = event.domEvent.changedTouches[0].pageX + 'px';
-      this.menuDomElem.style.top = event.domEvent.changedTouches[0].pageY + 'px';
+      this.menuDomElem.style.left = (event.domEvent.changedTouches[0].pageX + left) + 'px';
+      this.menuDomElem.style.top = (event.domEvent.changedTouches[0].pageY + left) + 'px';
     } else {
       // mouse click
-      this.menuDomElem.style.left = event.domEvent.clientX + 'px';
-      this.menuDomElem.style.top = event.domEvent.clientY + 'px';
+      this.menuDomElem.style.left = (event.domEvent.clientX + left) + 'px';
+      this.menuDomElem.style.top = (event.domEvent.clientY + top) + 'px';
     }
     document.body.appendChild(this.overlayDomElem);
     document.body.appendChild(this.menuDomElem);
@@ -54561,9 +54564,7 @@ var MarkerClient = /*@__PURE__*/(function (EventEmitter2) {
   MarkerClient.prototype.checkTime = function checkTime (name){
       var curTime = new Date().getTime();
       if (curTime - this.updatedTime[name] > this.lifetime) {
-          var oldNode = this.markers[name];
-          oldNode.unsubscribeTf();
-          this.rootObject.remove(oldNode);
+          this.removeMarker(name);
           this.emit('change');
       } else {
           var that = this;
@@ -54588,8 +54589,8 @@ var MarkerClient = /*@__PURE__*/(function (EventEmitter2) {
     var oldNode = this.markers[message.ns + message.id];
     this.updatedTime[message.ns + message.id] = new Date().getTime();
     if (oldNode) {
-      oldNode.unsubscribeTf();
-      this.rootObject.remove(oldNode);
+      this.removeMarker(message.ns + message.id);
+
     } else if (this.lifetime) {
       this.checkTime(message.ns + message.id);
     }
@@ -54609,6 +54610,15 @@ var MarkerClient = /*@__PURE__*/(function (EventEmitter2) {
     }
 
     this.emit('change');
+  };
+  MarkerClient.prototype.removeMarker = function removeMarker (key) {
+    var oldNode = this.markers[key];
+    oldNode.unsubscribeTf();
+    this.rootObject.remove(oldNode);
+    oldNode.children.forEach(function (child) {
+      child.dispose();
+    });
+    delete(this.markers[key]);
   };
 
   return MarkerClient;
@@ -55684,6 +55694,7 @@ var PointCloud2 = /*@__PURE__*/(function (superclass) {
     options = options || {};
     this.ros = options.ros;
     this.topicName = options.topic || '/points';
+    this.throttle_rate = options.throttle_rate || null;
     this.compression = options.compression || 'cbor';
     this.max_pts = options.max_pts || 10000;
     this.points = new Points$1(options);
@@ -55709,6 +55720,7 @@ var PointCloud2 = /*@__PURE__*/(function (superclass) {
       ros : this.ros,
       name : this.topicName,
       messageType : 'sensor_msgs/PointCloud2',
+      throttle_rate : this.throttle_rate,
       queue_length : 1,
       compression: this.compression
     });
@@ -55862,29 +55874,7 @@ var Urdf = /*@__PURE__*/(function (superclass) {
               console.warn('Could not load geometry mesh: '+uri);
             }
           } else {
-            if (!colorMaterial) {
-              colorMaterial = makeColorMaterial(0, 0, 0, 1);
-            }
-            var shapeMesh;
-            // Create a shape
-            switch (visual.geometry.type) {
-              case URDF_BOX:
-                var dimension = visual.geometry.dimension;
-                var cube = new THREE$1.BoxGeometry(dimension.x, dimension.y, dimension.z);
-                shapeMesh = new THREE$1.Mesh(cube, colorMaterial);
-                break;
-              case URDF_CYLINDER:
-                var radius = visual.geometry.radius;
-                var length = visual.geometry.length;
-                var cylinder = new THREE$1.CylinderGeometry(radius, radius, length, 16, 1, false);
-                shapeMesh = new THREE$1.Mesh(cylinder, colorMaterial);
-                shapeMesh.quaternion.setFromAxisAngle(new THREE$1.Vector3(1, 0, 0), Math.PI * 0.5);
-                break;
-              case URDF_SPHERE:
-                var sphere = new THREE$1.SphereGeometry(visual.geometry.radius, 16);
-                shapeMesh = new THREE$1.Mesh(sphere, colorMaterial);
-                break;
-            }
+            var shapeMesh = this.createShapeMesh(visual);
             // Create a scene node with the shape
             var scene = new SceneNode({
               frameID: frameID,
@@ -55902,6 +55892,35 @@ var Urdf = /*@__PURE__*/(function (superclass) {
   if ( superclass ) Urdf.__proto__ = superclass;
   Urdf.prototype = Object.create( superclass && superclass.prototype );
   Urdf.prototype.constructor = Urdf;
+  Urdf.prototype.createShapeMesh = function createShapeMesh (visual) {
+    var colorMaterial = null;
+    if (!colorMaterial) {
+      colorMaterial = makeColorMaterial(0, 0, 0, 1);
+    }
+    var shapeMesh;
+    // Create a shape
+    switch (visual.geometry.type) {
+      case URDF_BOX:
+        var dimension = visual.geometry.dimension;
+        var cube = new THREE$1.BoxGeometry(dimension.x, dimension.y, dimension.z);
+        shapeMesh = new THREE$1.Mesh(cube, colorMaterial);
+        break;
+      case URDF_CYLINDER:
+        var radius = visual.geometry.radius;
+        var length = visual.geometry.length;
+        var cylinder = new THREE$1.CylinderGeometry(radius, radius, length, 16, 1, false);
+        shapeMesh = new THREE$1.Mesh(cylinder, colorMaterial);
+        shapeMesh.quaternion.setFromAxisAngle(new THREE$1.Vector3(1, 0, 0), Math.PI * 0.5);
+        break;
+      case URDF_SPHERE:
+        var sphere = new THREE$1.SphereGeometry(visual.geometry.radius, 16);
+        shapeMesh = new THREE$1.Mesh(sphere, colorMaterial);
+        break;
+    }
+
+    return shapeMesh;
+  };
+
   Urdf.prototype.unsubscribeTf = function unsubscribeTf () {
     this.children.forEach(function(n) {
       if (typeof n.unsubscribeTf === 'function') { n.unsubscribeTf(); }
@@ -56137,17 +56156,16 @@ var MouseHandler = /*@__PURE__*/(function (superclass) {
     var top = pos_y - rect.top - target.clientTop + target.scrollTop;
     var deviceX = left / target.clientWidth * 2 - 1;
     var deviceY = -top / target.clientHeight * 2 + 1;
-    var vector = new THREE$1.Vector3(deviceX, deviceY, 0.5);
-    vector.unproject(this.camera);
-    // use the THREE raycaster
-    var mouseRaycaster = new THREE$1.Raycaster(this.camera.position.clone(), vector.sub(
-        this.camera.position).normalize());
+    var mousePos = new THREE$1.Vector2(deviceX, deviceY);
+
+    var mouseRaycaster = new THREE$1.Raycaster();
     mouseRaycaster.linePrecision = 0.001;
+    mouseRaycaster.setFromCamera(mousePos, this.camera);
     var mouseRay = mouseRaycaster.ray;
 
     // make our 3d mouse event
     var event3D = {
-      mousePos : new THREE$1.Vector2(deviceX, deviceY),
+      mousePos : mousePos,
       mouseRay : mouseRay,
       domEvent : domEvent,
       camera : this.camera,
