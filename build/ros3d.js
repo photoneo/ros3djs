@@ -57492,6 +57492,7 @@ exports.MouseHandler = MouseHandler;
 exports.OrbitControls = OrbitControls;
 exports.SceneNode = SceneNode;
 exports.Viewer = Viewer;
+exports.THREE$1 = THREE$1;
 
 return exports;
 
