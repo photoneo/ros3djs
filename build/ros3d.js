@@ -57493,6 +57493,7 @@ exports.OrbitControls = OrbitControls;
 exports.SceneNode = SceneNode;
 exports.Viewer = Viewer;
 exports.THREE$1 = THREE$1;
+exports.eventemitter2 = eventemitter2;
 
 return exports;
 
