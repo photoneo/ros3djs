@@ -54645,6 +54645,8 @@ class Urdf extends THREE$1.Object3D {
    *   * path (optional) - the base path to the associated Collada models that will be loaded
    *   * tfPrefix (optional) - the TF prefix to used for multi-robots
    *   * loader (optional) - the Collada loader to use (e.g., an instance of ROS3D.COLLADA_LOADER)
+   *   
+   *   // ** Custom functionality created by Photoneo **
    *   * meshPaths (optional) - the base paths to the associated Collada models that will be loaded.
    *                            Base path for each STL is determined by the first directory in the path of the model.
    *                            It applies only on meshes which URI starts with 'package://'
@@ -54679,6 +54681,9 @@ class Urdf extends THREE$1.Object3D {
             var color = visual.material && visual.material.color;
             colorMaterial = makeColorMaterial(color.r, color.g, color.b, color.a);
           }
+
+          path = options.path || '/';
+
           if (visual.geometry.type === ROSLIB.URDF_MESH) {
             var uri = visual.geometry.filename;
             // strips package://
@@ -54686,15 +54691,14 @@ class Urdf extends THREE$1.Object3D {
             if (tmpIndex !== -1) {
               uri = uri.substr(tmpIndex + ('package://').length);
 
-              //apply meshPaths if defined
+              // ** Custom piece of code created by Photoneo **
+              // apply meshPaths if defined
               if (meshPaths) {
                 var firstDir = uri.substring(0, uri.indexOf('/'));
                 var filename = uri.substring(uri.lastIndexOf('/')+1);
                 if (meshPaths[firstDir]) {
                   path = meshPaths[firstDir];
                   uri = filename;
-                } else {
-                    path = options.path || '/';
                 }
               }
             }
