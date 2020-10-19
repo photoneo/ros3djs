@@ -38053,7 +38053,7 @@ Object.assign( Font.prototype, {
 								cpx0 = laste.x;
 								cpy0 = laste.y;
 
-								
+
 
 							}
 
@@ -38077,7 +38077,7 @@ Object.assign( Font.prototype, {
 								cpx0 = laste.x;
 								cpy0 = laste.y;
 
-								
+
 
 							}
 
@@ -46668,11 +46668,11 @@ THREE$1.STLLoader.prototype = {
       var reader = new DataView(data);
       var faces = reader.getUint32(80, true);
 
-      var r, g, b, hasColors = false, colors;
-      var defaultR, defaultG, defaultB, alpha;
+			var r, g, b, hasColors = false, colors;
+			var defaultR, defaultG, defaultB, alpha;
 
-      // process STL header
-      // check for default color in header ("COLOR=rgba" sequence).
+			// process STL header
+			// check for default color in header ("COLOR=rgba" sequence).
 
       for (var index = 0; index < 80 - 10; index++) {
 
@@ -46680,29 +46680,29 @@ THREE$1.STLLoader.prototype = {
           (reader.getUint8(index + 4) == 0x52 /*'R'*/) &&
           (reader.getUint8(index + 5) == 0x3D /*'='*/)) {
 
-          hasColors = true;
-          colors = [];
+					hasColors = true;
+					colors = [];
 
           defaultR = reader.getUint8(index + 6) / 255;
           defaultG = reader.getUint8(index + 7) / 255;
           defaultB = reader.getUint8(index + 8) / 255;
           alpha = reader.getUint8(index + 9) / 255;
 
-        }
+				}
 
-      }
+			}
 
-      var dataOffset = 84;
-      var faceLength = 12 * 4 + 2;
+			var dataOffset = 84;
+			var faceLength = 12 * 4 + 2;
 
-      var geometry = new THREE$1.BufferGeometry();
+			var geometry = new THREE$1.BufferGeometry();
 
-      var vertices = [];
-      var normals = [];
+			var vertices = [];
+			var normals = [];
 
       for (var face = 0; face < faces; face++) {
 
-        var start = dataOffset + face * faceLength;
+				var start = dataOffset + face * faceLength;
         var normalX = reader.getFloat32(start, true);
         var normalY = reader.getFloat32(start + 4, true);
         var normalZ = reader.getFloat32(start + 8, true);
@@ -46713,25 +46713,25 @@ THREE$1.STLLoader.prototype = {
 
           if ((packedColor & 0x8000) === 0) {
 
-            // facet has its own unique color
+						// facet has its own unique color
 
             r = (packedColor & 0x1F) / 31;
             g = ((packedColor >> 5) & 0x1F) / 31;
             b = ((packedColor >> 10) & 0x1F) / 31;
 
-          } else {
+					} else {
 
-            r = defaultR;
-            g = defaultG;
-            b = defaultB;
+						r = defaultR;
+						g = defaultG;
+						b = defaultB;
 
-          }
+					}
 
-        }
+				}
 
         for (var i = 1; i <= 3; i++) {
 
-          var vertexstart = start + i * 12;
+					var vertexstart = start + i * 12;
 
           vertices.push(reader.getFloat32(vertexstart, true));
           vertices.push(reader.getFloat32(vertexstart + 4, true));
@@ -46743,11 +46743,11 @@ THREE$1.STLLoader.prototype = {
 
             colors.push(r, g, b);
 
-          }
+					}
 
-        }
+				}
 
-      }
+			}
 
       geometry.addAttribute('position', new THREE$1.BufferAttribute(new Float32Array(vertices), 3));
       geometry.addAttribute('normal', new THREE$1.BufferAttribute(new Float32Array(normals), 3));
@@ -46755,12 +46755,12 @@ THREE$1.STLLoader.prototype = {
       if (hasColors) {
 
         geometry.addAttribute('color', new THREE$1.BufferAttribute(new Float32Array(colors), 3));
-        geometry.hasColors = true;
-        geometry.alpha = alpha;
+				geometry.hasColors = true;
+				geometry.alpha = alpha;
 
-      }
+			}
 
-      return geometry;
+			return geometry;
 
     }
 
@@ -46842,7 +46842,7 @@ THREE$1.STLLoader.prototype = {
 
           return new TextDecoder().decode(array_buffer);
 
-        }
+			}
 
         var str = '';
 
@@ -46856,9 +46856,9 @@ THREE$1.STLLoader.prototype = {
 
       } else {
 
-        return buffer;
+			return buffer;
 
-      }
+    }
 
     }
 
@@ -50383,6 +50383,7 @@ class MeshResource extends THREE$1.Object3D {
     var resource = options.resource;
     var material = options.material || null;
     this.warnings = options.warnings;
+    this.loader = options.loader;
 
 
     // check for a trailing '/'
@@ -50425,6 +50426,7 @@ class MeshResource extends THREE$1.Object3D {
         });
     } else if (fileType === '.stl') {
       loader = new THREE$1.STLLoader();
+      loader = that.loader;
       {
         loader.load(uri,
                     function ( geometry ) {
@@ -50549,6 +50551,7 @@ class Marker extends THREE$1.Object3D {
     options = options || {};
     var path = options.path || '/';
     var message = options.message;
+    var loader = options.loader;
 
     // check for a trailing '/'
     if (path.substr(path.length - 1) !== '/') {
@@ -50841,6 +50844,7 @@ class Marker extends THREE$1.Object3D {
           path : path,
           resource :  this.msgMesh,
           material : meshColorMaterial,
+          loader : loader,
         });
         this.add(meshResource);
         break;
@@ -54705,20 +54709,20 @@ class Urdf extends THREE$1.Object3D {
                 }
               }
             } else {
-              // ** Custom piece of code created by Photoneo **
-              tmpIndex = uri.indexOf('file://');
-              if (tmpIndex !== -1) {
-                uri = uri.substr(tmpIndex + ('file://').length);
+                // ** Custom piece of code created by Photoneo **
+                tmpIndex = uri.indexOf('file://');
+                if (tmpIndex !== -1) {
+                    uri = uri.substr(tmpIndex + ('file://').length);
 
-                // apply meshPaths if defined
-                if (meshPaths) {
-                  var filename = uri.substring(uri.lastIndexOf('/') + 1);
-                  if (meshPaths[filename]) {
-                    path = meshPaths[filename];
-                    uri = filename;
-                  }
+                    // apply meshPaths if defined
+                    if (meshPaths) {
+                        var filename = uri.substring(uri.lastIndexOf('/') + 1);
+                        if (meshPaths[filename]) {
+                            path = meshPaths[filename];
+                            uri = filename;
+                        }
+                    }
                 }
-              }
             }
 
             var fileType = uri.substr(-4).toLowerCase();
