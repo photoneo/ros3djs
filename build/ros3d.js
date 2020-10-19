@@ -50633,7 +50633,7 @@ class Marker extends THREE$1.Object3D {
       case MARKER_LINE_STRIP:
         var lineStripGeom = new THREE$1.Geometry();
         var lineStripMaterial = new THREE$1.LineBasicMaterial({
-          size : message.scale.x
+          // size : message.scale.x
         });
 
         // add the points
